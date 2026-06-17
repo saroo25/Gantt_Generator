@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Play, AlertCircle, HelpCircle, Printer, ChevronDown, ChevronUp, Download, Check, Users, LayoutList, Activity } from 'lucide-react';
+import { Play, AlertCircle, HelpCircle, ChevronDown, ChevronUp, Download, Check, Users, LayoutList, Activity } from 'lucide-react';
 
 // --- Utility Functions ---
 
@@ -365,19 +365,21 @@ dep T4.3 T4.1`);
   const [legendY, setLegendY] = useState(175); 
   const [milestoneOffset, setMilestoneOffset] = useState(0); 
   const [editorHeight, setEditorHeight] = useState(300);
-  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [isSavingPdf, setIsSavingPdf] = useState(false);
   const [viewMode, setViewMode] = useState('inline'); // CHANGED TO INLINE DEFAULT
+  const chartExportRef = useRef(null);
   
   useEffect(() => {
     setData(parseGanttCode(code));
   }, [code]);
 
   useEffect(() => {
-    if (showToast) {
-        const timer = setTimeout(() => setShowToast(false), 3000);
+    if (toastMessage) {
+        const timer = setTimeout(() => setToastMessage(''), 3000);
         return () => clearTimeout(timer);
     }
-  }, [showToast]);
+  }, [toastMessage]);
 
   const layout = useMemo(() => {
     let rowIndex = 0;
@@ -461,8 +463,47 @@ dep T4.3 T4.1`);
     return 1;
   }, [zoomX]);
 
-  const handlePrint = () => {
-    setShowToast(true);
+  const handleSavePdf = async () => {
+    if (!chartExportRef.current || isSavingPdf) return;
+
+    try {
+      setIsSavingPdf(true);
+      setToastMessage('Saving PDF...');
+
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+
+      const element = chartExportRef.current;
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#ffffff',
+        scale: Math.min(2, window.devicePixelRatio || 1),
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+      });
+
+      const orientation = canvas.width >= canvas.height ? 'landscape' : 'portrait';
+      const pdf = new jsPDF({
+        orientation,
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+        compress: true,
+      });
+
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save('iscra-b-gantt.pdf');
+      setToastMessage('PDF saved.');
+    } catch (error) {
+      console.error(error);
+      setToastMessage('PDF export failed.');
+    } finally {
+      setIsSavingPdf(false);
+    }
   };
 
   // Determine Y position for the legend anchored to T1.1.1 or WP1
@@ -480,10 +521,10 @@ dep T4.3 T4.1`);
   return (
     <div className="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans print-container relative">
       {/* Toast */}
-      {showToast && (
+      {toastMessage && (
           <div className="absolute top-16 right-6 z-50 bg-gray-800 text-white px-4 py-3 rounded shadow-lg flex items-center animate-fade-in-down no-print">
-              <Printer size={18} className="mr-2" />
-              <span className="text-sm font-medium">Use <kbd className="bg-gray-700 px-1 rounded">Ctrl</kbd> + <kbd className="bg-gray-700 px-1 rounded">P</kbd> to save as PDF</span>
+              <Download size={18} className="mr-2" />
+              <span className="text-sm font-medium">{toastMessage}</span>
           </div>
       )}
 
@@ -548,11 +589,12 @@ dep T4.3 T4.1`);
            </div>
            
            <button 
-              onClick={handlePrint}
-              className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
+              onClick={handleSavePdf}
+              disabled={isSavingPdf}
+              className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-900 disabled:bg-gray-500 disabled:cursor-wait text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0"
            >
-              <Printer size={16} />
-              <span>Print</span>
+              <Download size={16} />
+              <span>{isSavingPdf ? 'Saving...' : 'Salva'}</span>
            </button>
         </div>
       </header>
@@ -560,6 +602,7 @@ dep T4.3 T4.1`);
       {/* Chart Pane (Top) */}
       <div className="flex-1 overflow-auto relative custom-scrollbar bg-white print-scroll-fix">
           <div 
+             ref={chartExportRef}
              className="relative min-w-max print-scroll-fix"
              style={{ 
                height: (layout.totalRows * zoomY) + HEADER_HEIGHT + 20,
