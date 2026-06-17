@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Play, AlertCircle, HelpCircle, ChevronDown, ChevronUp, Download, Check, Users, LayoutList, Activity } from 'lucide-react';
 
 // --- Utility Functions ---
@@ -964,5 +965,15 @@ dep T4.3 T4.1`);
         </div>
       </div>
     </div>
+  );
+}
+
+const rootElement = document.getElementById('root');
+
+if (rootElement) {
+  createRoot(rootElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
   );
 }
